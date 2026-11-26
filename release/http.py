@@ -19,7 +19,12 @@ from signs.assembly import create_sign, edit_sign
 from signs.bindings import BindingRejected
 from signs.overrides import EditRejected, effective_slot
 from signs.snapshots import SignSnapshot, SignSnapshotRejected, load_current_sign_snapshot
-from templates.approval import PublicationRejected, approve_and_publish
+from signs.upgrades import UpgradeRejected, upgrade_sign
+from templates.approval import (
+    PublicationRejected,
+    approve_and_publish,
+    publish_template_revision,
+)
 from templates.drafts import create_draft
 from templates.layout import InvalidLayout
 
@@ -82,6 +87,18 @@ def _post(db: sqlite3.Connection, route: tuple[str, ...], payload: dict) -> tupl
                 'title': template.title,
                 'slots': [asdict(slot) for slot in template.slots],
             }
+        case ('templates', base_id, 'revisions') if base_id:
+            template, sources = publish_template_revision(db, base_id, payload)
+            return 201, {
+                'template': template.id,
+                'base': base_id,
+                'draft': template.draft,
+                'title': template.title,
+                'slots': [
+                    {**asdict(slot), 'from': sources[slot.key]}
+                    for slot in template.slots
+                ],
+            }
         case ('signs',):
             _require_fields(payload, 'template', 'assets')
             template_id = _identifier(payload['template'], 'template')
@@ -92,6 +109,9 @@ def _post(db: sqlite3.Connection, route: tuple[str, ...], payload: dict) -> tupl
             return 201, _sign_state(create_sign(db, template_id, revisions))
         case ('signs', sign_id, 'edits') if sign_id:
             return 200, _sign_state(edit_sign(db, sign_id, payload))
+        case ('signs', sign_id, 'upgrade') if sign_id:
+            snapshot = upgrade_sign(db, sign_id, payload)
+            return 200, _sign_state(snapshot)
         case ('signs', sign_id, 'proofs') if sign_id:
             _require_fields(payload, 'revision')
             revision_id = _identifier(payload['revision'], 'revision')
@@ -173,6 +193,11 @@ class RequestHandler(BaseHTTPRequestHandler):
                     status, result = _get(db, route)
         except (InvalidAsset, InvalidLayout) as error:
             status, result = 400, {'error': str(error)}
+        except UpgradeRejected as error:
+            status = error.status
+            result = {'error': str(error)}
+            if error.retired_slots is not None:
+                result['retired_slots'] = list(error.retired_slots)
         except (
             _RequestError, PublicationRejected, BindingRejected, EditRejected,
             SignSnapshotRejected, ReleaseRejected, ReleaseNotFound,

@@ -62,6 +62,10 @@ def insert_sign_binding(db: Connection, template: str, assets: tuple[str, ...]) 
     return SignBinding(sign_id, template, assets)
 
 
+def update_sign_template(db: Connection, sign_id: str, template: str) -> None:
+    db.execute('UPDATE signs SET template = ? WHERE id = ?', (template, sign_id))
+
+
 def load_sign_binding(db: Connection, sign_id: str) -> SignBinding | None:
     row = db.execute('SELECT id, template FROM signs WHERE id = ?', (sign_id,)).fetchone()
     if row is None:

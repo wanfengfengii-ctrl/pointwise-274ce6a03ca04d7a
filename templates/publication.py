@@ -14,6 +14,13 @@ class PublishedTemplate:
     slots: tuple[SlotSpec, ...]
 
 
+@dataclass(frozen=True)
+class TemplateLineage:
+    child: str
+    base: str
+    sources: dict[str, str | None]
+
+
 def create_template_release_tables(db: Connection) -> None:
     db.execute('''
         CREATE TABLE IF NOT EXISTS published_templates (
@@ -22,6 +29,13 @@ def create_template_release_tables(db: Connection) -> None:
             draft TEXT NOT NULL UNIQUE REFERENCES template_drafts(id),
             title TEXT NOT NULL,
             slots_json TEXT NOT NULL
+        )
+    ''')
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS template_lineage (
+            child TEXT PRIMARY KEY REFERENCES published_templates(id),
+            base TEXT NOT NULL REFERENCES published_templates(id),
+            mapping_json TEXT NOT NULL
         )
     ''')
 
@@ -56,3 +70,26 @@ def find_publication_by_draft(db: Connection, draft_id: str) -> PublishedTemplat
         (draft_id,),
     ).fetchone()
     return _decode(row)
+
+
+def save_template_lineage(
+    db: Connection, child: str, base: str, sources: dict[str, str | None]
+) -> TemplateLineage:
+    db.execute('''
+        INSERT INTO template_lineage(child, base, mapping_json)
+        VALUES (?, ?, ?)
+    ''', (child, base, json.dumps(sources, ensure_ascii=False)))
+    return TemplateLineage(child, base, sources.copy())
+
+
+def load_template_lineage(db: Connection, child: str) -> TemplateLineage | None:
+    row = db.execute('''
+        SELECT child, base, mapping_json
+        FROM template_lineage
+        WHERE child = ?
+    ''', (child,)).fetchone()
+    if row is None:
+        return None
+    return TemplateLineage(
+        row['child'], row['base'], json.loads(row['mapping_json'])
+    )

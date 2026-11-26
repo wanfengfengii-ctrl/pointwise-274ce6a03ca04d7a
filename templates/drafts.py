@@ -23,17 +23,20 @@ def create_draft_tables(db: Connection) -> None:
     ''')
 
 
-def create_draft(db: Connection, payload: dict) -> TemplateDraft:
-    if payload.keys() != {'title', 'slots'} or not isinstance(payload['title'], str):
-        raise InvalidLayout('a template draft requires a string title and slots')
-    slots = validate_layout(payload['slots'])
-    title = payload['title']
+def insert_draft(db: Connection, title: str, slots: tuple[SlotSpec, ...]) -> TemplateDraft:
     number = db.execute(
         'INSERT INTO template_drafts(title, slots_json) VALUES (?, ?)',
         (title, json.dumps([asdict(slot) for slot in slots], ensure_ascii=False)),
     ).lastrowid
     row = db.execute('SELECT id FROM template_drafts WHERE number = ?', (number,)).fetchone()
     return TemplateDraft(row['id'], title, slots)
+
+
+def create_draft(db: Connection, payload: dict) -> TemplateDraft:
+    if payload.keys() != {'title', 'slots'} or not isinstance(payload['title'], str):
+        raise InvalidLayout('a template draft requires a string title and slots')
+    slots = validate_layout(payload['slots'])
+    return insert_draft(db, payload['title'], slots)
 
 
 def load_draft(db: Connection, draft_id: str) -> TemplateDraft | None:

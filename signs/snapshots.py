@@ -27,9 +27,10 @@ def _require_binding(db: Connection, sign_id: str) -> SignBinding:
 
 
 def _snapshot(db: Connection, binding: SignBinding, revision: SignRevision) -> SignSnapshot:
-    template = load_published_template(db, binding.template)
+    template_id = revision.template or binding.template
+    template = load_published_template(db, template_id)
     if template is None:
-        raise IntegrityError('sign has no published template')
+        raise IntegrityError('sign revision has no published template')
     return SignSnapshot(binding, template, revision)
 
 

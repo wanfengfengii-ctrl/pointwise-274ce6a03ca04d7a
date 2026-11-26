@@ -86,12 +86,41 @@ def main():
             historical = expect(reopened, 201, sign_path + "/proofs", {"revision": original["revision"]})
             equal(dict(historical, proof=old_proof["proof"]), old_proof)
             equal(expect(reopened, 200, "/proofs/" + old_proof["proof"]), old_proof)
-            equal(reopened.request(receipt_path).raw, fixed.raw)
+            reclaimed_reply = reopened.request(receipt_path)
+            equal(reclaimed_reply.status, 200)
+            reclaimed = reclaimed_reply.body
+            equal(reclaimed_reply.raw, fixed.raw)
             equal(expect(reopened, 200, sign_path), latest)
+
+        first_proof_view = [
+            [slot["key"], slot["label"], slot["lines"], slot["overflow"]]
+            for slot in old_proof["slots"]
+        ]
         print(json.dumps({
             "换版后人工签": values(upgraded), "换版后默认签": values(compare),
             "退役拒绝": rejection["retired_slots"], "重开在用": values(latest),
-            "重开旧校样模板": historical["template"], "重开复领发阅号": old_release["release"],
+            "末站完整状态": latest,
+            "次站校样": [
+                [slot["key"], slot["label"], slot["lines"], slot["overflow"]]
+                for slot in current_proof["slots"]
+            ],
+            "次站定稿来源": current_release["source"],
+            "重开旧校样模板": historical["template"],
+            "首站校样": {
+                "proof": old_proof["proof"],
+                "revision": old_proof["revision"],
+                "template": old_proof["template"],
+                "slots": first_proof_view,
+                "overflow": old_proof["overflow"],
+                "重出校样除编号外一致": dict(historical, proof=old_proof["proof"]) == old_proof,
+            },
+            "重开复领发阅号": old_release["release"],
+            "首站定稿复领": {
+                "release": reclaimed["release"],
+                "source": reclaimed["source"],
+                "html": reclaimed["html"],
+                "bytes_match": reclaimed_reply.raw == fixed.raw,
+            },
         }, ensure_ascii=False, indent=2))
 
 

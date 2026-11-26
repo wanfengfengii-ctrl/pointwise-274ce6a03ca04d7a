@@ -81,6 +81,9 @@ def main() -> None:
             '重开复领来源': reclaimed['source'],
         }, ensure_ascii=False, indent=2))
 
+    from upgrade_walkthrough import main as upgrade_main
+    upgrade_main()
+
 
 if __name__ == '__main__':
     main()

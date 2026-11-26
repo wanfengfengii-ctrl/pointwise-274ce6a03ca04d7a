@@ -105,7 +105,16 @@ class HTTPCase(unittest.TestCase):
             return db.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0]
 
     def block_commit_after(self, table: str, event: str) -> None:
-        if (table, event) not in {('releases', 'INSERT'), ('sign_current', 'UPDATE')}:
+        supported = {
+            ('releases', 'INSERT'),
+            ('sign_current', 'UPDATE'),
+            ('signs', 'UPDATE'),
+            ('sign_revisions', 'INSERT'),
+            ('template_drafts', 'INSERT'),
+            ('published_templates', 'INSERT'),
+            ('template_lineage', 'INSERT'),
+        }
+        if (table, event) not in supported:
             raise ValueError('unsupported regression trigger')
         with closing(open_database(self.path)) as db:
             db.executescript(f'''
